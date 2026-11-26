@@ -33,10 +33,8 @@ smart-canteen-cloud-repo/
 ├── index.html                                    # Complete SPA (Student Portal, Admin & Prediction, Analytics)
 ├── config.js                                     # Cloud configuration (Supabase endpoint, cutoff time, team metadata)
 ├── vercel.json                                   # Static hosting configuration
-├── sql/
-│   └── 01_supabase_schema_and_seed.sql           # PostgreSQL tables, constraints, RLS policies & RPC function
-├── supabase/functions/predict-demand/
-│   └── index.ts                                  # Deno Edge Function alternative for demand prediction
+├── 01_supabase_schema_and_seed.sql           # PostgreSQL tables, constraints, RLS policies & RPC function
+├── index.ts                                  # Deno Edge Function alternative for demand prediction
 └── README.md                                     # Project documentation & setup guide
 ```
 
