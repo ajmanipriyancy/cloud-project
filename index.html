@@ -1,0 +1,1251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Smart Canteen Cloud System | UCS531</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js for Analytics -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Supabase JS Client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="config.js"></script>
+  <style>
+    body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+    .tab-active { background-color: #ea580c; color: #ffffff; box-shadow: 0 4px 14px rgba(234, 88, 12, 0.35); }
+    @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+    .live-dot { animation: pulse-dot 1.8s infinite; }
+  </style>
+</head>
+<body class="text-slate-800 min-h-screen flex flex-col">
+
+  <!-- Top Cloud Status Bar -->
+  <div class="bg-slate-900 text-slate-200 text-xs py-2 px-4 border-b border-slate-800">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-2">
+      <div class="flex items-center gap-2">
+        <span id="cloudStatusDot" class="w-2.5 h-2.5 rounded-full bg-emerald-400 live-dot"></span>
+        <span id="cloudStatusText" class="font-medium">Cloud Status: Connected</span>
+        <span class="text-slate-500">|</span>
+        <span class="text-slate-400">UCS531 Cloud Computing Project • Faculty Advisor: Dr. Ishani Rana</span>
+      </div>
+      <div class="flex items-center gap-3">
+        <span id="todayDateBadge" class="bg-slate-800 px-2.5 py-0.5 rounded text-slate-300 font-mono"></span>
+        <button onclick="toggleArchitectureModal()" class="text-orange-400 hover:text-orange-300 font-semibold underline">
+          View Cloud Architecture
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Navigation Header -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-amber-600 flex items-center justify-center text-white font-extrabold text-lg shadow-md">
+          SC
+        </div>
+        <div>
+          <h1 class="text-lg sm:text-xl font-extrabold text-slate-900 tracking-tight leading-none">
+            Smart Canteen <span class="text-orange-600">Cloud</span>
+          </h1>
+          <p class="text-xs text-slate-500 mt-0.5">Meal Demand Prediction & Food Wastage Analytics</p>
+        </div>
+      </div>
+
+      <!-- Navigation Switcher -->
+      <nav class="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200">
+        <button id="nav-student" onclick="switchView('student')" class="tab-active px-4 py-2 rounded-lg text-sm font-semibold transition-all">
+          Student Portal
+        </button>
+        <button id="nav-admin" onclick="switchView('admin')" class="px-4 py-2 rounded-lg text-sm font-semibold text-slate-600 hover:text-slate-900 transition-all flex items-center gap-1.5">
+          <span id="adminLockIcon">🔒</span> Admin & Prediction
+        </button>
+        <button id="nav-analytics" onclick="switchView('analytics')" class="px-4 py-2 rounded-lg text-sm font-semibold text-slate-600 hover:text-slate-900 transition-all">
+          Wastage Analytics
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Toast Notification Banner -->
+  <div id="toast" class="fixed bottom-5 right-5 z-50 hidden transform transition-all duration-300">
+    <div class="bg-slate-900 text-white px-5 py-3.5 rounded-xl shadow-2xl border border-slate-700 flex items-center gap-3 max-w-md">
+      <span id="toastIcon" class="text-emerald-400 text-lg font-bold">✓</span>
+      <p id="toastMsg" class="text-sm font-medium"></p>
+    </div>
+  </div>
+
+  <!-- Admin Passcode Modal -->
+  <div id="adminAuthModal" class="fixed inset-0 bg-slate-900/75 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <h3 class="text-lg font-extrabold text-slate-900">Admin Access Verification</h3>
+        <button onclick="closeAdminAuthModal()" class="text-slate-400 hover:text-slate-700 text-2xl font-bold">&times;</button>
+      </div>
+      <p class="text-xs text-slate-600">
+        Enter the Canteen Manager PIN to unlock menu controls, demand forecasting, and kitchen logs.
+      </p>
+      <div class="space-y-3">
+        <input id="adminPassInput" type="password" placeholder="Enter Admin PIN"
+          onkeydown="if(event.key==='Enter') verifyAdminPasscode()"
+          class="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-sm focus:outline-none focus:border-orange-500" />
+        <p class="text-[11px] text-slate-400">Evaluation Demo PIN: <code class="bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded font-semibold">admin123</code></p>
+        <button onclick="verifyAdminPasscode()" class="w-full bg-orange-600 hover:bg-orange-500 text-white font-bold py-2.5 rounded-xl text-sm transition">
+          Unlock Admin Dashboard
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN CONTENT CONTAINER -->
+  <main class="max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 flex-1">
+
+    <!-- ===================================================================== -->
+    <!-- VIEW 1: STUDENT PORTAL                                                -->
+    <!-- ===================================================================== -->
+    <section id="view-student" class="space-y-6">
+      <!-- Hero Banner & Student Login Bar -->
+      <div class="bg-gradient-to-r from-slate-900 via-slate-800 to-orange-950 rounded-2xl p-6 sm:p-8 text-white shadow-lg">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+          <div class="lg:col-span-7 space-y-2">
+            <span class="inline-block bg-orange-500/20 text-orange-300 border border-orange-500/30 text-xs font-semibold px-3 py-1 rounded-full">
+              Zero Food Waste Initiative • TIET Campus Canteen
+            </span>
+            <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight">
+              Pre-Book Your Meal Preference Before Preparation Starts
+            </h2>
+            <p class="text-slate-300 text-sm max-w-2xl">
+              Tell the canteen what you plan to eat today. Your response syncs directly to the Cloud Database so chefs prepare the exact right quantity—eliminating shortages and food waste.
+            </p>
+          </div>
+
+          <!-- Quick Student Session Card -->
+          <div class="lg:col-span-5 bg-white/10 backdrop-blur-md border border-white/15 rounded-xl p-4 sm:p-5">
+            <div id="studentLoginForm" class="space-y-3">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold uppercase tracking-wider text-orange-300">Student Identification</span>
+                <span class="text-xs text-slate-300">Cutoff: <strong id="cutoffDisplay">11:30 AM</strong></span>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <input id="studentRollInput" type="text" placeholder="Roll No (e.g. 1024030610)" value="1024030610"
+                  class="w-full px-3.5 py-2 rounded-lg bg-slate-900/80 border border-slate-600 text-white text-sm placeholder-slate-400 focus:outline-none focus:border-orange-400" />
+                <input id="studentNameInput" type="text" placeholder="Full Name" value="Deepansh Mehta"
+                  class="w-full px-3.5 py-2 rounded-lg bg-slate-900/80 border border-slate-600 text-white text-sm placeholder-slate-400 focus:outline-none focus:border-orange-400" />
+              </div>
+              <button onclick="saveStudentSession()" class="w-full bg-orange-600 hover:bg-orange-500 text-white font-semibold py-2 rounded-lg text-sm transition shadow">
+                Activate Student Session
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Active Student Summary & Submitted Preferences -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Menu Grid (2 Columns) -->
+        <div class="lg:col-span-2 space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h3 class="text-lg font-bold text-slate-900">Today's Live Canteen Menu</h3>
+              <p class="text-xs text-slate-500">Select quantity (1–5 plates) and submit or update your preference anytime before cutoff.</p>
+            </div>
+            <button onclick="loadAllData()" class="text-xs bg-white border border-slate-300 hover:bg-slate-50 px-3 py-1.5 rounded-lg font-semibold text-slate-700">
+              ↻ Sync Menu
+            </button>
+          </div>
+
+          <div id="studentMenuGrid" class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <!-- Populated dynamically via JS -->
+          </div>
+        </div>
+
+        <!-- My Submitted Preferences Sidebar -->
+        <div class="space-y-4">
+          <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm sticky top-24">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+              <div>
+                <h3 class="font-bold text-slate-900">My Meal Preferences</h3>
+                <p id="activeStudentLabel" class="text-xs text-slate-500">Roll: 1024030610 (Deepansh Mehta)</p>
+              </div>
+              <span id="myPrefCountBadge" class="bg-orange-100 text-orange-700 text-xs font-extrabold px-2.5 py-1 rounded-full">
+                0 Items
+              </span>
+            </div>
+
+            <div id="myPreferencesList" class="space-y-3 min-h-[140px]">
+              <!-- Populated dynamically -->
+            </div>
+
+            <div class="mt-5 pt-4 border-t border-slate-100 bg-slate-50 rounded-xl p-3.5 text-xs text-slate-600 space-y-1">
+              <div class="flex justify-between font-semibold text-slate-800">
+                <span>Estimated Total:</span>
+                <span id="myEstimatedTotal">₹0</span>
+              </div>
+              <p class="text-[11px] text-slate-500">
+                Note: Submitting a preference helps the kitchen forecast demand. You can modify or cancel before cutoff.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================================================================== -->
+    <!-- VIEW 2: ADMIN PORTAL & CLOUD DEMAND PREDICTION                        -->
+    <!-- ===================================================================== -->
+    <section id="view-admin" class="hidden space-y-6">
+      <!-- Top Action Header -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <span class="text-xs font-bold uppercase tracking-wider text-orange-600">Canteen Manager & Cloud Engine</span>
+          <h2 class="text-2xl font-extrabold text-slate-900">Demand Prediction & Kitchen Control</h2>
+          <p class="text-sm text-slate-500 mt-0.5">
+            Formula: <code class="bg-slate-100 px-2 py-0.5 rounded text-slate-800 font-semibold">Predicted = 0.7 × (Current Preferences) + 0.3 × (Historical Avg)</code>
+          </p>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-3">
+          <button onclick="runCloudDemandPrediction()" id="runPredictionBtn"
+            class="bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-500 hover:to-amber-500 text-white font-bold px-5 py-3 rounded-xl shadow-lg shadow-orange-500/25 flex items-center gap-2 transition transform active:scale-95">
+            <span>⚡ Run Cloud Demand Prediction</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- KPI Summary Row -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+          <p class="text-xs font-semibold text-slate-500 uppercase">Total Student Votes Today</p>
+          <p id="kpiTotalVotes" class="text-2xl font-extrabold text-slate-900 mt-1">0</p>
+          <p class="text-xs text-emerald-600 mt-1 font-medium">Live from Cloud DB</p>
+        </div>
+        <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+          <p class="text-xs font-semibold text-slate-500 uppercase">Recommended Prep (Total)</p>
+          <p id="kpiTotalPredicted" class="text-2xl font-extrabold text-orange-600 mt-1">0 plates</p>
+          <p class="text-xs text-slate-500 mt-1">Weighted Statistical Estimate</p>
+        </div>
+        <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+          <p class="text-xs font-semibold text-slate-500 uppercase">Active Menu Items</p>
+          <p id="kpiMenuCount" class="text-2xl font-extrabold text-slate-900 mt-1">0</p>
+          <p class="text-xs text-slate-500 mt-1">Available for students</p>
+        </div>
+        <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+          <p class="text-xs font-semibold text-slate-500 uppercase">Avg Wastage Rate (7D)</p>
+          <p id="kpiAvgWastage" class="text-2xl font-extrabold text-blue-600 mt-1">0%</p>
+          <p class="text-xs text-emerald-600 mt-1 font-medium">Target: &lt; 8% wastage</p>
+        </div>
+      </div>
+
+      <!-- Demand Prediction & Actuals Table -->
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="p-5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 class="font-bold text-slate-900 text-lg">Today's Demand Forecast & Actual Kitchen Log</h3>
+            <p class="text-xs text-slate-500">Click "Run Cloud Demand Prediction" to compute recommendations, then enter actual prepared & sold counts after service.</p>
+          </div>
+          <span id="predictionTimestamp" class="text-xs font-mono bg-slate-100 text-slate-600 px-3 py-1 rounded-lg">
+            Ready to compute
+          </span>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="bg-slate-50 border-b border-slate-200 text-xs font-bold uppercase text-slate-600">
+                <th class="py-3.5 px-4">Food Item</th>
+                <th class="py-3.5 px-4 text-center">Student Votes (0.7x)</th>
+                <th class="py-3.5 px-4 text-center">Historical Avg (0.3x)</th>
+                <th class="py-3.5 px-4 text-center bg-orange-50/70 text-orange-800">Predicted Demand</th>
+                <th class="py-3.5 px-4 text-center">Actual Prepared</th>
+                <th class="py-3.5 px-4 text-center">Actual Sold</th>
+                <th class="py-3.5 px-4 text-center">Leftover / Wastage</th>
+                <th class="py-3.5 px-4 text-right">Save Log</th>
+              </tr>
+            </thead>
+            <tbody id="adminPredictionTable" class="divide-y divide-slate-100 text-sm">
+              <!-- Populated dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Bottom Split: Add Menu Item + Live Student Response Feed -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <!-- Add New Menu Item Form -->
+        <div class="lg:col-span-5 bg-white rounded-2xl border border-slate-200 p-5 shadow-sm space-y-4">
+          <h3 class="font-bold text-slate-900 text-base border-b border-slate-100 pb-2.5">
+            + Add New Dish to Cloud Menu
+          </h3>
+          <div class="space-y-3 text-sm">
+            <div>
+              <label class="block text-xs font-semibold text-slate-600 mb-1">Dish Name</label>
+              <input id="newDishName" type="text" placeholder="e.g. Aloo Paratha with Curd"
+                class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:border-orange-500" />
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Category</label>
+                <select id="newDishCategory" class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-white">
+                  <option>North Indian</option>
+                  <option>South Indian</option>
+                  <option>Snacks</option>
+                  <option>Thali & Bowls</option>
+                  <option>Beverages</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Price (₹)</label>
+                <input id="newDishPrice" type="number" value="50" min="1"
+                  class="w-full px-3 py-2 border border-slate-300 rounded-lg" />
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Historical Avg Servings</label>
+                <input id="newDishHistAvg" type="number" value="60" min="1"
+                  class="w-full px-3 py-2 border border-slate-300 rounded-lg" />
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-600 mb-1">Calories (kcal)</label>
+                <input id="newDishCalories" type="number" value="420" min="50"
+                  class="w-full px-3 py-2 border border-slate-300 rounded-lg" />
+              </div>
+            </div>
+            <button onclick="addNewMenuItem()" class="w-full bg-slate-900 hover:bg-slate-800 text-white font-semibold py-2.5 rounded-lg transition">
+              Add Dish to Menu
+            </button>
+          </div>
+        </div>
+
+        <!-- Live Student Responses Feed -->
+        <div class="lg:col-span-7 bg-white rounded-2xl border border-slate-200 p-5 shadow-sm flex flex-col">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-2.5 mb-3">
+            <h3 class="font-bold text-slate-900 text-base">Live Student Preference Submissions</h3>
+            <span class="text-xs text-slate-500">Real-time student records</span>
+          </div>
+          <div id="liveResponsesFeed" class="space-y-2 max-h-[290px] overflow-y-auto pr-1">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================================================================== -->
+    <!-- VIEW 3: FOOD WASTAGE ANALYTICS                                        -->
+    <!-- ===================================================================== -->
+    <section id="view-analytics" class="hidden space-y-6">
+      <div class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+        <h2 class="text-2xl font-extrabold text-slate-900">Food Wastage & Demand Accuracy Analytics</h2>
+        <p class="text-sm text-slate-500 mt-1">
+          Visualizing predicted servings vs. actual preparation and tracking daily food wastage reduction across the week.
+        </p>
+      </div>
+
+      <!-- Charts Grid -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+          <h3 class="font-bold text-slate-900 mb-1">Today: Current Votes vs. Historical vs. Predicted Demand</h3>
+          <p class="text-xs text-slate-500 mb-4">Shows how the 70/30 weighted cloud model balances live demand with historical baseline.</p>
+          <div class="h-72">
+            <canvas id="demandChart"></canvas>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+          <h3 class="font-bold text-slate-900 mb-1">7-Day Food Wastage Trend (%)</h3>
+          <p class="text-xs text-slate-500 mb-4">Tracks leftover food percentage over the past week as demand forecasting improves.</p>
+          <div class="h-72">
+            <canvas id="wastageChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Detailed Historical Records Table -->
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="p-5 border-b border-slate-100">
+          <h3 class="font-bold text-slate-900">Historical Preparation & Wastage Audit Log</h3>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse text-sm">
+            <thead>
+              <tr class="bg-slate-50 border-b border-slate-200 text-xs font-bold uppercase text-slate-600">
+                <th class="py-3 px-4">Date</th>
+                <th class="py-3 px-4">Food Item</th>
+                <th class="py-3 px-4 text-center">Predicted</th>
+                <th class="py-3 px-4 text-center">Prepared</th>
+                <th class="py-3 px-4 text-center">Sold</th>
+                <th class="py-3 px-4 text-center">Leftover</th>
+                <th class="py-3 px-4 text-center">Wastage %</th>
+              </tr>
+            </thead>
+            <tbody id="historicalAuditTable" class="divide-y divide-slate-100">
+              <!-- Populated dynamically -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Architecture & Viva Reference Modal -->
+  <div id="archModal" class="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <h3 class="text-xl font-extrabold text-slate-900">UCS531 Cloud System Architecture</h3>
+        <button onclick="toggleArchitectureModal()" class="text-slate-400 hover:text-slate-700 text-2xl font-bold">&times;</button>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-center text-xs">
+        <div class="bg-orange-50 border border-orange-200 p-4 rounded-xl">
+          <p class="font-extrabold text-orange-800 text-sm mb-1">1. Presentation Tier</p>
+          <p class="text-slate-600">HTML5, Tailwind CSS, Vanilla JS, Chart.js hosted on <strong>Netlify Global CDN</strong> over HTTPS</p>
+        </div>
+        <div class="bg-blue-50 border border-blue-200 p-4 rounded-xl">
+          <p class="font-extrabold text-blue-800 text-sm mb-1">2. Serverless Compute</p>
+          <p class="text-slate-600"><strong>Supabase PostgreSQL RPC</strong> (Serverless Database Function) executing demand prediction</p>
+        </div>
+        <div class="bg-emerald-50 border border-emerald-200 p-4 rounded-xl">
+          <p class="font-extrabold text-emerald-800 text-sm mb-1">3. Cloud Data Tier</p>
+          <p class="text-slate-600"><strong>Managed PostgreSQL (BaaS)</strong> storing menu, live preferences & wastage records</p>
+        </div>
+      </div>
+
+      <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 text-xs space-y-2 text-slate-700">
+        <p class="font-bold text-slate-900">Weighted Statistical Demand Model:</p>
+        <p class="font-mono bg-white p-2 rounded border border-slate-200">
+          Predicted_Demand = ROUND( 0.70 × Current_Student_Preferences + 0.30 × Historical_Daily_Average )
+        </p>
+        <p><strong>Why 70/30 weighting?</strong> Live student pre-bookings capture same-day appetite shifts (70% weight), while historical averages buffer for walk-in students who don't pre-book (30% weight). Weights can be tuned via regression to minimize Mean Absolute Error (MAE).</p>
+      </div>
+
+      <div class="text-xs text-slate-500 flex justify-between items-center pt-2">
+        <span>Team: Deepansh (1024030610), Gurman (1024031074), Priyancy (1024031064)</span>
+        <button onclick="toggleArchitectureModal()" class="bg-slate-900 text-white px-4 py-2 rounded-lg font-semibold">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="bg-white border-t border-slate-200 py-4 px-6 text-center text-xs text-slate-500 mt-10">
+    Cloud-Based Smart Canteen Management & Food Demand Prediction System (UCS531) • Built for Live Cloud Deployment
+  </footer>
+
+  <!-- ======================================================================= -->
+  <!-- APPLICATION LOGIC (SUPABASE LIVE + RESILIENT FALLBACK ENGINE)           -->
+  <!-- ======================================================================= -->
+  <script>
+    const TODAY = new Date().toISOString().split("T")[0];
+    document.getElementById("todayDateBadge").textContent = "Date: " + TODAY;
+    if (window.APP_CONFIG?.CUTOFF_TIME) {
+      document.getElementById("cutoffDisplay").textContent = window.APP_CONFIG.CUTOFF_TIME;
+    }
+
+    // Initialize Supabase if credentials are provided
+    let supabaseClient = null;
+    let isCloudConnected = false;
+
+    const cfg = window.APP_CONFIG || {};
+    if (
+      cfg.SUPABASE_URL &&
+      cfg.SUPABASE_ANON_KEY &&
+      !cfg.SUPABASE_URL.includes("YOUR_SUPABASE")
+    ) {
+      try {
+        supabaseClient = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
+        isCloudConnected = true;
+      } catch (e) {
+        console.warn("Supabase init failed, falling back to local demo mode:", e);
+      }
+    }
+
+    // Update Cloud Status Badge
+    const statusDot = document.getElementById("cloudStatusDot");
+    const statusText = document.getElementById("cloudStatusText");
+    if (isCloudConnected) {
+      statusDot.className = "w-2.5 h-2.5 rounded-full bg-emerald-400 live-dot";
+      statusText.textContent = "Cloud Status: Live Supabase PostgreSQL Connected";
+    } else {
+      statusDot.className = "w-2.5 h-2.5 rounded-full bg-amber-400 live-dot";
+      statusText.textContent = "Cloud Status: Demo Sandbox Mode (Add Supabase keys in config.js for live DB)";
+    }
+
+    // Default Seed Data (used only if running offline)
+    const DEFAULT_SEED = {
+      menu: [
+        { id: "m1", name: "Chole Bhature", category: "North Indian", price: 60, historical_avg: 90, is_available_today: true, calories: 620, prep_time_mins: 15 },
+        { id: "m2", name: "Masala Dosa", category: "South Indian", price: 55, historical_avg: 65, is_available_today: true, calories: 410, prep_time_mins: 12 },
+        { id: "m3", name: "Paneer Grilled Sandwich", category: "Snacks", price: 45, historical_avg: 50, is_available_today: true, calories: 360, prep_time_mins: 10 },
+        { id: "m4", name: "Rajma Chawal Bowl", category: "Thali & Bowls", price: 65, historical_avg: 80, is_available_today: true, calories: 540, prep_time_mins: 10 },
+        { id: "m5", name: "Veg Hakka Noodles", category: "Indo-Chinese", price: 50, historical_avg: 55, is_available_today: true, calories: 480, prep_time_mins: 14 },
+        { id: "m6", name: "Cold Coffee & Samosa", category: "Beverages", price: 40, historical_avg: 75, is_available_today: true, calories: 390, prep_time_mins: 5 }
+      ],
+      preferences: [
+        { id: "p1", student_roll: "1024031074", student_name: "Gurman Singh", menu_item_id: "m1", quantity: 1, meal_date: TODAY },
+        { id: "p2", student_roll: "1024031064", student_name: "Priyancy Ajmani", menu_item_id: "m2", quantity: 1, meal_date: TODAY },
+        { id: "p3", student_roll: "1024030881", student_name: "Aarav Sharma", menu_item_id: "m1", quantity: 2, meal_date: TODAY }
+      ],
+      records: [
+        { id: "r1", menu_item_id: "m1", record_date: getPastDate(6), current_preferences: 78, historical_avg: 90, predicted_demand: 82, prepared_qty: 95, sold_qty: 76 },
+        { id: "r2", menu_item_id: "m1", record_date: getPastDate(5), current_preferences: 84, historical_avg: 90, predicted_demand: 86, prepared_qty: 90, sold_qty: 83 },
+        { id: "r3", menu_item_id: "m1", record_date: getPastDate(4), current_preferences: 65, historical_avg: 90, predicted_demand: 73, prepared_qty: 75, sold_qty: 70 },
+        { id: "r4", menu_item_id: "m1", record_date: getPastDate(3), current_preferences: 88, historical_avg: 90, predicted_demand: 89, prepared_qty: 90, sold_qty: 87 },
+        { id: "r5", menu_item_id: "m1", record_date: getPastDate(2), current_preferences: 72, historical_avg: 90, predicted_demand: 77, prepared_qty: 80, sold_qty: 75 },
+        { id: "r6", menu_item_id: "m1", record_date: getPastDate(1), current_preferences: 80, historical_avg: 90, predicted_demand: 83, prepared_qty: 85, sold_qty: 82 }
+      ]
+    };
+
+    function getPastDate(daysAgo) {
+      const d = new Date();
+      d.setDate(d.getDate() - daysAgo);
+      return d.toISOString().split("T")[0];
+    }
+
+    function getLocalStore() {
+      const raw = localStorage.getItem("smart_canteen_db_v1");
+      if (!raw) {
+        localStorage.setItem("smart_canteen_db_v1", JSON.stringify(DEFAULT_SEED));
+        return JSON.parse(JSON.stringify(DEFAULT_SEED));
+      }
+      return JSON.parse(raw);
+    }
+    function setLocalStore(data) {
+      localStorage.setItem("smart_canteen_db_v1", JSON.stringify(data));
+    }
+
+    // Restore student session across refreshes
+    const savedRoll = sessionStorage.getItem("sc_student_roll") || "1024030610";
+    const savedName = sessionStorage.getItem("sc_student_name") || "Deepansh Mehta";
+    document.getElementById("studentRollInput").value = savedRoll;
+    document.getElementById("studentNameInput").value = savedName;
+    document.getElementById("activeStudentLabel").textContent = `Roll: ${savedRoll} (${savedName})`;
+
+    // Global App State
+    let state = {
+      studentRoll: savedRoll,
+      studentName: savedName,
+      isAdminUnlocked: sessionStorage.getItem("sc_admin_unlocked") === "true",
+      menu: [],
+      preferences: [],
+      records: []
+    };
+
+    if (state.isAdminUnlocked) {
+      document.getElementById("adminLockIcon").textContent = "🔓";
+    }
+
+    let demandChartInstance = null;
+    let wastageChartInstance = null;
+
+    // UI Helpers
+    function showToast(msg, isError = false) {
+      const toast = document.getElementById("toast");
+      const icon = document.getElementById("toastIcon");
+      const text = document.getElementById("toastMsg");
+      icon.textContent = isError ? "⚠" : "✓";
+      icon.className = isError ? "text-amber-400 text-lg font-bold" : "text-emerald-400 text-lg font-bold";
+      text.textContent = msg;
+      toast.classList.remove("hidden");
+      clearTimeout(window._toastTimer);
+      window._toastTimer = setTimeout(() => toast.classList.add("hidden"), 3500);
+    }
+
+    function switchView(viewName) {
+      if (viewName === "admin" && !state.isAdminUnlocked) {
+        document.getElementById("adminAuthModal").classList.remove("hidden");
+        setTimeout(() => document.getElementById("adminPassInput").focus(), 50);
+        return;
+      }
+
+      ["student", "admin", "analytics"].forEach((v) => {
+        document.getElementById("view-" + v).classList.toggle("hidden", v !== viewName);
+        const btn = document.getElementById("nav-" + v);
+        if (v === viewName) {
+          btn.classList.add("tab-active");
+          btn.classList.remove("text-slate-600");
+        } else {
+          btn.classList.remove("tab-active");
+          btn.classList.add("text-slate-600");
+        }
+      });
+      if (viewName === "analytics") {
+        renderCharts();
+      }
+    }
+
+    function closeAdminAuthModal() {
+      document.getElementById("adminAuthModal").classList.add("hidden");
+      document.getElementById("adminPassInput").value = "";
+    }
+
+    function verifyAdminPasscode() {
+      const entered = document.getElementById("adminPassInput").value.trim();
+      const expected = cfg.ADMIN_PASSCODE || "admin123";
+      if (entered === expected) {
+        state.isAdminUnlocked = true;
+        sessionStorage.setItem("sc_admin_unlocked", "true");
+        document.getElementById("adminLockIcon").textContent = "🔓";
+        closeAdminAuthModal();
+        switchView("admin");
+        showToast("Admin Dashboard unlocked.");
+      } else {
+        showToast("Incorrect Admin PIN. Use 'admin123' for demo.", true);
+      }
+    }
+
+    function toggleArchitectureModal() {
+      document.getElementById("archModal").classList.toggle("hidden");
+    }
+
+    function saveStudentSession() {
+      const roll = document.getElementById("studentRollInput").value.trim();
+      const name = document.getElementById("studentNameInput").value.trim();
+      if (!roll || !name) {
+        showToast("Please enter both Roll Number and Name.", true);
+        return;
+      }
+      state.studentRoll = roll;
+      state.studentName = name;
+      sessionStorage.setItem("sc_student_roll", roll);
+      sessionStorage.setItem("sc_student_name", name);
+      document.getElementById("activeStudentLabel").textContent = `Roll: ${roll} (${name})`;
+      renderAll();
+      showToast(`Session active for ${name} (${roll})`);
+    }
+
+    // =========================================================================
+    // DATA LAYER (CLOUD SUPABASE + FALLBACK)
+    // =========================================================================
+    async function loadAllData() {
+      if (isCloudConnected) {
+        try {
+          const [menuRes, prefRes, recRes] = await Promise.all([
+            supabaseClient.from("menu_items").select("*").order("created_at", { ascending: true }),
+            supabaseClient.from("meal_preferences").select("*").eq("meal_date", TODAY),
+            supabaseClient.from("daily_records").select("*").order("record_date", { ascending: false })
+          ]);
+          if (menuRes.error) throw menuRes.error;
+          state.menu = menuRes.data || [];
+          state.preferences = prefRes.data || [];
+          state.records = recRes.data || [];
+          renderAll();
+          return;
+        } catch (err) {
+          console.error("Cloud fetch error:", err);
+          showToast("Cloud sync warning: check Supabase tables/keys.", true);
+        }
+      }
+      const local = getLocalStore();
+      state.menu = local.menu;
+      state.preferences = local.preferences.filter((p) => p.meal_date === TODAY);
+      state.records = local.records;
+      renderAll();
+    }
+
+    async function submitPreference(menuItemId) {
+      const qtyInput = document.getElementById("qty-" + menuItemId);
+      const quantity = Math.min(5, Math.max(1, parseInt(qtyInput ? qtyInput.value : "1", 10) || 1));
+
+      if (isCloudConnected) {
+        try {
+          const { error } = await supabaseClient
+            .from("meal_preferences")
+            .upsert(
+              {
+                student_roll: state.studentRoll,
+                student_name: state.studentName,
+                menu_item_id: menuItemId,
+                quantity: quantity,
+                meal_date: TODAY,
+                updated_at: new Date().toISOString()
+              },
+              { onConflict: "student_roll,menu_item_id,meal_date" }
+            );
+          if (error) throw error;
+          await loadAllData();
+          showToast("Meal preference saved to Cloud Database!");
+          return;
+        } catch (err) {
+          showToast("Error saving preference: " + err.message, true);
+          return;
+        }
+      }
+
+      const local = getLocalStore();
+      const idx = local.preferences.findIndex(
+        (p) => p.student_roll === state.studentRoll && p.menu_item_id === menuItemId && p.meal_date === TODAY
+      );
+      if (idx >= 0) {
+        local.preferences[idx].quantity = quantity;
+      } else {
+        local.preferences.push({
+          id: "p_" + Date.now(),
+          student_roll: state.studentRoll,
+          student_name: state.studentName,
+          menu_item_id: menuItemId,
+          quantity: quantity,
+          meal_date: TODAY
+        });
+      }
+      setLocalStore(local);
+      await loadAllData();
+      showToast("Preference updated!");
+    }
+
+    async function removePreference(prefId) {
+      if (isCloudConnected) {
+        const { error } = await supabaseClient.from("meal_preferences").delete().eq("id", prefId);
+        if (error) {
+          showToast("Delete failed: " + error.message, true);
+          return;
+        }
+        await loadAllData();
+        showToast("Preference removed.");
+        return;
+      }
+      const local = getLocalStore();
+      local.preferences = local.preferences.filter((p) => p.id !== prefId);
+      setLocalStore(local);
+      await loadAllData();
+      showToast("Preference removed.");
+    }
+
+    async function runCloudDemandPrediction() {
+      const btn = document.getElementById("runPredictionBtn");
+      btn.disabled = true;
+      btn.innerHTML = "<span>⏳ Computing Cloud Forecast...</span>";
+
+      try {
+        if (isCloudConnected) {
+          const { error: rpcError } = await supabaseClient.rpc("run_demand_prediction", {
+            target_date: TODAY
+          });
+
+          if (rpcError) {
+            for (const item of state.menu.filter((m) => m.is_available_today)) {
+              const curVotes = state.preferences
+                .filter((p) => p.menu_item_id === item.id)
+                .reduce((s, p) => s + p.quantity, 0);
+              const pred = Math.round(0.7 * curVotes + 0.3 * item.historical_avg);
+              await supabaseClient.from("daily_records").upsert(
+                {
+                  menu_item_id: item.id,
+                  record_date: TODAY,
+                  current_preferences: curVotes,
+                  historical_avg: item.historical_avg,
+                  predicted_demand: pred
+                },
+                { onConflict: "menu_item_id,record_date" }
+              );
+            }
+          }
+          await loadAllData();
+        } else {
+          const local = getLocalStore();
+          for (const item of local.menu.filter((m) => m.is_available_today)) {
+            const curVotes = local.preferences
+              .filter((p) => p.menu_item_id === item.id && p.meal_date === TODAY)
+              .reduce((s, p) => s + p.quantity, 0);
+            const pred = Math.round(0.7 * curVotes + 0.3 * item.historical_avg);
+
+            const rIdx = local.records.findIndex(
+              (r) => r.menu_item_id === item.id && r.record_date === TODAY
+            );
+            if (rIdx >= 0) {
+              local.records[rIdx].current_preferences = curVotes;
+              local.records[rIdx].historical_avg = item.historical_avg;
+              local.records[rIdx].predicted_demand = pred;
+            } else {
+              local.records.unshift({
+                id: "r_" + Date.now() + "_" + item.id,
+                menu_item_id: item.id,
+                record_date: TODAY,
+                current_preferences: curVotes,
+                historical_avg: item.historical_avg,
+                predicted_demand: pred,
+                prepared_qty: pred,
+                sold_qty: 0
+              });
+            }
+          }
+          setLocalStore(local);
+          await loadAllData();
+        }
+
+        document.getElementById("predictionTimestamp").textContent =
+          "Last Predicted: " + new Date().toLocaleTimeString();
+        showToast("Cloud Demand Prediction executed successfully!");
+      } catch (err) {
+        showToast("Prediction error: " + err.message, true);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = "<span>⚡ Run Cloud Demand Prediction</span>";
+      }
+    }
+
+    async function saveActualLog(menuItemId) {
+      const prepVal = Math.max(0, parseInt(document.getElementById("prep-" + menuItemId).value, 10) || 0);
+      const soldVal = Math.max(0, parseInt(document.getElementById("sold-" + menuItemId).value, 10) || 0);
+
+      if (soldVal > prepVal) {
+        showToast("Actual Sold cannot exceed Actual Prepared.", true);
+        return;
+      }
+
+      const item = state.menu.find((m) => m.id === menuItemId);
+      const curVotes = state.preferences
+        .filter((p) => p.menu_item_id === menuItemId)
+        .reduce((s, p) => s + p.quantity, 0);
+      const pred = Math.round(0.7 * curVotes + 0.3 * (item ? item.historical_avg : 50));
+
+      if (isCloudConnected) {
+        const { error } = await supabaseClient.from("daily_records").upsert(
+          {
+            menu_item_id: menuItemId,
+            record_date: TODAY,
+            current_preferences: curVotes,
+            historical_avg: item ? item.historical_avg : 50,
+            predicted_demand: pred,
+            prepared_qty: prepVal,
+            sold_qty: soldVal
+          },
+          { onConflict: "menu_item_id,record_date" }
+        );
+        if (error) {
+          showToast("Error saving log: " + error.message, true);
+          return;
+        }
+        await loadAllData();
+        showToast("Prepared & Sold counts saved to Cloud!");
+        return;
+      }
+
+      const local = getLocalStore();
+      const idx = local.records.findIndex(
+        (r) => r.menu_item_id === menuItemId && r.record_date === TODAY
+      );
+      if (idx >= 0) {
+        local.records[idx].prepared_qty = prepVal;
+        local.records[idx].sold_qty = soldVal;
+      } else {
+        local.records.unshift({
+          id: "r_" + Date.now(),
+          menu_item_id: menuItemId,
+          record_date: TODAY,
+          current_preferences: curVotes,
+          historical_avg: item ? item.historical_avg : 50,
+          predicted_demand: pred,
+          prepared_qty: prepVal,
+          sold_qty: soldVal
+        });
+      }
+      setLocalStore(local);
+      await loadAllData();
+      showToast("Kitchen log updated & wastage recalculated!");
+    }
+
+    async function addNewMenuItem() {
+      const name = document.getElementById("newDishName").value.trim();
+      const category = document.getElementById("newDishCategory").value;
+      const price = parseFloat(document.getElementById("newDishPrice").value);
+      const historical_avg = parseInt(document.getElementById("newDishHistAvg").value, 10);
+      const calories = Math.max(50, parseInt(document.getElementById("newDishCalories").value, 10) || 400);
+
+      if (!name) {
+        showToast("Please enter a dish name.", true);
+        return;
+      }
+      if (isNaN(price) || price <= 0) {
+        showToast("Price must be greater than ₹0.", true);
+        return;
+      }
+      if (isNaN(historical_avg) || historical_avg <= 0) {
+        showToast("Historical average must be at least 1 serving.", true);
+        return;
+      }
+
+      if (isCloudConnected) {
+        const { error } = await supabaseClient.from("menu_items").insert({
+          name,
+          category,
+          price,
+          historical_avg,
+          calories,
+          is_available_today: true
+        });
+        if (error) {
+          showToast("Error adding dish: " + error.message, true);
+          return;
+        }
+        document.getElementById("newDishName").value = "";
+        await loadAllData();
+        showToast(`Added "${name}" to live cloud menu!`);
+        return;
+      }
+
+      const local = getLocalStore();
+      local.menu.push({
+        id: "m_" + Date.now(),
+        name,
+        category,
+        price,
+        historical_avg,
+        calories,
+        prep_time_mins: 12,
+        is_available_today: true
+      });
+      setLocalStore(local);
+      document.getElementById("newDishName").value = "";
+      await loadAllData();
+      showToast(`Added "${name}" to menu!`);
+    }
+
+    async function deleteMenuItem(menuItemId) {
+      if (isCloudConnected) {
+        const { error } = await supabaseClient.from("menu_items").delete().eq("id", menuItemId);
+        if (error) {
+          showToast("Could not delete item: " + error.message, true);
+          return;
+        }
+        await loadAllData();
+        showToast("Menu item removed.");
+        return;
+      }
+      const local = getLocalStore();
+      local.menu = local.menu.filter((m) => m.id !== menuItemId);
+      setLocalStore(local);
+      await loadAllData();
+      showToast("Menu item removed.");
+    }
+
+    // =========================================================================
+    // RENDER FUNCTIONS
+    // =========================================================================
+    function renderAll() {
+      renderStudentMenu();
+      renderMyPreferences();
+      renderAdminDashboard();
+      renderHistoricalTable();
+    }
+
+    function renderStudentMenu() {
+      const grid = document.getElementById("studentMenuGrid");
+      const activeMenu = state.menu.filter((m) => m.is_available_today);
+
+      grid.innerHTML = activeMenu
+        .map((item) => {
+          const existingPref = state.preferences.find(
+            (p) => p.student_roll === state.studentRoll && p.menu_item_id === item.id
+          );
+          const totalItemVotes = state.preferences
+            .filter((p) => p.menu_item_id === item.id)
+            .reduce((s, p) => s + p.quantity, 0);
+
+          return `
+            <div class="bg-white rounded-2xl border ${
+              existingPref ? "border-orange-400 ring-2 ring-orange-100" : "border-slate-200"
+            } p-5 shadow-sm flex flex-col justify-between transition hover:shadow-md">
+              <div>
+                <div class="flex items-start justify-between gap-2">
+                  <span class="text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                    ${item.category}
+                  </span>
+                  <span class="text-base font-extrabold text-slate-900">₹${item.price}</span>
+                </div>
+                <h4 class="text-lg font-bold text-slate-900 mt-2.5">${item.name}</h4>
+                <div class="flex items-center gap-3 text-xs text-slate-500 mt-1.5">
+                  <span>🔥 ${item.calories || 450} kcal</span>
+                  <span>•</span>
+                  <span>👥 ${totalItemVotes} booked today</span>
+                </div>
+              </div>
+
+              <div class="mt-4 pt-3.5 border-t border-slate-100 flex items-center gap-2">
+                <select id="qty-${item.id}" class="px-2.5 py-2 border border-slate-300 rounded-lg text-sm font-semibold bg-slate-50">
+                  ${[1, 2, 3, 4, 5]
+                    .map(
+                      (n) =>
+                        `<option value="${n}" ${
+                          existingPref && existingPref.quantity === n ? "selected" : ""
+                        }>${n} Plate${n > 1 ? "s" : ""}</option>`
+                    )
+                    .join("")}
+                </select>
+                <button onclick="submitPreference('${item.id}')"
+                  class="flex-1 ${
+                    existingPref
+                      ? "bg-emerald-600 hover:bg-emerald-500"
+                      : "bg-orange-600 hover:bg-orange-500"
+                  } text-white font-semibold py-2 px-3 rounded-lg text-sm transition">
+                  ${existingPref ? "✓ Update Preference" : "Select Meal"}
+                </button>
+              </div>
+            </div>
+          `;
+        })
+        .join("");
+    }
+
+    function renderMyPreferences() {
+      const list = document.getElementById("myPreferencesList");
+      const myPrefs = state.preferences.filter((p) => p.student_roll === state.studentRoll);
+      document.getElementById("myPrefCountBadge").textContent = `${myPrefs.length} Item${
+        myPrefs.length !== 1 ? "s" : ""
+      }`;
+
+      if (myPrefs.length === 0) {
+        list.innerHTML = `
+          <div class="text-center py-8 text-slate-400 text-xs">
+            No meals selected yet for today.<br/>Pick an item from the menu to pre-book!
+          </div>
+        `;
+        document.getElementById("myEstimatedTotal").textContent = "₹0";
+        return;
+      }
+
+      let totalCost = 0;
+      list.innerHTML = myPrefs
+        .map((pref) => {
+          const item = state.menu.find((m) => m.id === pref.menu_item_id);
+          const name = item ? item.name : "Menu Item";
+          const price = item ? Number(item.price) : 50;
+          totalCost += price * pref.quantity;
+
+          return `
+            <div class="flex items-center justify-between bg-orange-50/70 border border-orange-200/80 rounded-xl px-3.5 py-2.5">
+              <div>
+                <p class="text-sm font-bold text-slate-900">${name}</p>
+                <p class="text-xs text-slate-600">Qty: <strong>${pref.quantity}</strong> × ₹${price} = ₹${
+            pref.quantity * price
+          }</p>
+              </div>
+              <button onclick="removePreference('${pref.id}')" title="Cancel preference"
+                class="text-xs text-rose-600 hover:text-rose-800 font-semibold px-2 py-1 rounded hover:bg-rose-50">
+                Remove
+              </button>
+            </div>
+          `;
+        })
+        .join("");
+
+      document.getElementById("myEstimatedTotal").textContent = `₹${totalCost}`;
+    }
+
+    function renderAdminDashboard() {
+      const tbody = document.getElementById("adminPredictionTable");
+      let totalVotes = 0;
+      let totalPredicted = 0;
+
+      tbody.innerHTML = state.menu
+        .map((item) => {
+          const curVotes = state.preferences
+            .filter((p) => p.menu_item_id === item.id)
+            .reduce((s, p) => s + p.quantity, 0);
+          totalVotes += curVotes;
+
+          const todayRec = state.records.find(
+            (r) => r.menu_item_id === item.id && r.record_date === TODAY
+          );
+          const predicted = todayRec
+            ? todayRec.predicted_demand
+            : Math.round(0.7 * curVotes + 0.3 * item.historical_avg);
+          totalPredicted += predicted;
+
+          const prepQty = todayRec ? todayRec.prepared_qty : predicted;
+          const soldQty = todayRec ? todayRec.sold_qty : 0;
+          const leftover = Math.max(prepQty - soldQty, 0);
+          const wastePct = prepQty > 0 ? ((leftover / prepQty) * 100).toFixed(1) : "0.0";
+
+          return `
+            <tr class="hover:bg-slate-50/80 transition">
+              <td class="py-3.5 px-4">
+                <div class="font-bold text-slate-900">${item.name}</div>
+                <div class="text-xs text-slate-400 flex items-center gap-2">
+                  <span>${item.category} • ₹${item.price}</span>
+                  <button onclick="deleteMenuItem('${item.id}')" class="text-rose-500 hover:underline">Delete</button>
+                </div>
+              </td>
+              <td class="py-3.5 px-4 text-center font-semibold text-slate-800">${curVotes}</td>
+              <td class="py-3.5 px-4 text-center text-slate-600">${item.historical_avg}</td>
+              <td class="py-3.5 px-4 text-center bg-orange-50/50">
+                <span class="inline-block bg-orange-100 text-orange-800 font-extrabold px-3 py-1 rounded-lg">
+                  ${predicted} plates
+                </span>
+              </td>
+              <td class="py-3.5 px-4 text-center">
+                <input id="prep-${item.id}" type="number" value="${prepQty}" min="0"
+                  class="w-20 text-center px-2 py-1.5 border border-slate-300 rounded-lg font-semibold" />
+              </td>
+              <td class="py-3.5 px-4 text-center">
+                <input id="sold-${item.id}" type="number" value="${soldQty}" min="0"
+                  class="w-20 text-center px-2 py-1.5 border border-slate-300 rounded-lg font-semibold" />
+              </td>
+              <td class="py-3.5 px-4 text-center">
+                <span class="text-xs font-bold px-2.5 py-1 rounded-full ${
+                  Number(wastePct) > 15
+                    ? "bg-rose-100 text-rose-700"
+                    : "bg-emerald-100 text-emerald-700"
+                }">
+                  ${leftover} (${wastePct}%)
+                </span>
+              </td>
+              <td class="py-3.5 px-4 text-right">
+                <button onclick="saveActualLog('${item.id}')"
+                  class="bg-slate-900 hover:bg-slate-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition">
+                  Save
+                </button>
+              </td>
+            </tr>
+          `;
+        })
+        .join("");
+
+      document.getElementById("kpiTotalVotes").textContent = totalVotes;
+      document.getElementById("kpiTotalPredicted").textContent = `${totalPredicted} plates`;
+      document.getElementById("kpiMenuCount").textContent = state.menu.length;
+
+      const validPast = state.records.filter((r) => r.prepared_qty > 0);
+      if (validPast.length > 0) {
+        const avgW =
+          validPast.reduce((acc, r) => {
+            const left = Math.max(r.prepared_qty - r.sold_qty, 0);
+            return acc + (left / r.prepared_qty) * 100;
+          }, 0) / validPast.length;
+        document.getElementById("kpiAvgWastage").textContent = avgW.toFixed(1) + "%";
+      }
+
+      const feed = document.getElementById("liveResponsesFeed");
+      if (state.preferences.length === 0) {
+        feed.innerHTML = `<p class="text-xs text-slate-400 py-6 text-center">No student preferences recorded yet today.</p>`;
+      } else {
+        feed.innerHTML = state.preferences
+          .slice()
+          .reverse()
+          .map((p) => {
+            const item = state.menu.find((m) => m.id === p.menu_item_id);
+            return `
+              <div class="flex items-center justify-between bg-slate-50 border border-slate-200/70 rounded-xl px-3.5 py-2 text-xs">
+                <div>
+                  <span class="font-bold text-slate-900">${p.student_name}</span>
+                  <span class="text-slate-500 font-mono">(${p.student_roll})</span>
+                </div>
+                <div class="font-semibold text-orange-700">
+                  ${p.quantity}× ${item ? item.name : "Dish"}
+                </div>
+              </div>
+            `;
+          })
+          .join("");
+      }
+    }
+
+    function renderHistoricalTable() {
+      const tbody = document.getElementById("historicalAuditTable");
+      const sorted = state.records
+        .slice()
+        .sort((a, b) => (a.record_date < b.record_date ? 1 : -1));
+
+      tbody.innerHTML = sorted
+        .map((r) => {
+          const item = state.menu.find((m) => m.id === r.menu_item_id);
+          const left = Math.max((r.prepared_qty || 0) - (r.sold_qty || 0), 0);
+          const pct =
+            r.prepared_qty > 0 ? ((left / r.prepared_qty) * 100).toFixed(1) : "0.0";
+          return `
+            <tr class="hover:bg-slate-50">
+              <td class="py-3 px-4 font-mono text-xs text-slate-600">${r.record_date}</td>
+              <td class="py-3 px-4 font-semibold text-slate-900">${item ? item.name : "Chole Bhature"}</td>
+              <td class="py-3 px-4 text-center font-semibold text-orange-600">${r.predicted_demand}</td>
+              <td class="py-3 px-4 text-center">${r.prepared_qty}</td>
+              <td class="py-3 px-4 text-center text-emerald-700 font-semibold">${r.sold_qty}</td>
+              <td class="py-3 px-4 text-center">${left}</td>
+              <td class="py-3 px-4 text-center">
+                <span class="px-2 py-0.5 rounded-full text-xs font-bold ${
+                  Number(pct) > 12 ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700"
+                }">${pct}%</span>
+              </td>
+            </tr>
+          `;
+        })
+        .join("");
+    }
+
+    function renderCharts() {
+      const labels = state.menu.map((m) => m.name);
+      const currentData = state.menu.map((m) =>
+        state.preferences
+          .filter((p) => p.menu_item_id === m.id)
+          .reduce((s, p) => s + p.quantity, 0)
+      );
+      const histData = state.menu.map((m) => m.historical_avg);
+      const predData = state.menu.map((m, idx) =>
+        Math.round(0.7 * currentData[idx] + 0.3 * histData[idx])
+      );
+
+      const ctx1 = document.getElementById("demandChart").getContext("2d");
+      if (demandChartInstance) demandChartInstance.destroy();
+      demandChartInstance = new Chart(ctx1, {
+        type: "bar",
+        data: {
+          labels,
+          datasets: [
+            { label: "Current Student Votes", data: currentData, backgroundColor: "#3b82f6", borderRadius: 6 },
+            { label: "Historical Average", data: histData, backgroundColor: "#94a3b8", borderRadius: 6 },
+            { label: "Predicted Demand (70/30)", data: predData, backgroundColor: "#ea580c", borderRadius: 6 }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { position: "bottom" } }
+        }
+      });
+
+      const dateMap = {};
+      state.records.forEach((r) => {
+        if (r.prepared_qty > 0) {
+          if (!dateMap[r.record_date]) dateMap[r.record_date] = { prep: 0, left: 0 };
+          dateMap[r.record_date].prep += r.prepared_qty;
+          dateMap[r.record_date].left += Math.max(r.prepared_qty - r.sold_qty, 0);
+        }
+      });
+      const sortedDates = Object.keys(dateMap).sort();
+      const wasteRates = sortedDates.map((d) =>
+        Number(((dateMap[d].left / dateMap[d].prep) * 100).toFixed(1))
+      );
+
+      const ctx2 = document.getElementById("wastageChart").getContext("2d");
+      if (wastageChartInstance) wastageChartInstance.destroy();
+      wastageChartInstance = new Chart(ctx2, {
+        type: "line",
+        data: {
+          labels: sortedDates,
+          datasets: [
+            {
+              label: "Daily Food Wastage (%)",
+              data: wasteRates,
+              borderColor: "#10b981",
+              backgroundColor: "rgba(16, 185, 129, 0.15)",
+              fill: true,
+              tension: 0.35,
+              pointRadius: 5
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: { y: { beginAtZero: true, max: 35 } },
+          plugins: { legend: { position: "bottom" } }
+        }
+      });
+    }
+
+    // Initial Load
+    loadAllData();
+  </script>
+</body>
+</html>
